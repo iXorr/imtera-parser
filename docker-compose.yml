@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  db:
+    container_name: ${APP_ID:-app}_db
+    build:
+      context: ./services/mysql
+    ports:
+      - ${MYSQL_PORT:-3306}:3306
+    environment:
+      - MYSQL_DATABASE=${APP_ID:-app}_db
+      - MYSQL_USER=${MYSQL_USER:-admin}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-admin}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
+    volumes:
+      - ./services/mysql/data:/var/lib/mysql
+
+  backend:
+    container_name: ${APP_ID:-app}_backend
+    build: 
+      context: .
+      dockerfile: ./services/php/Dockerfile
+    volumes:
+      - ./backend:/var/www/html
+    depends_on:
+      - db
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: ${APP_ID:-app}_db
+      DB_PORT: 3306
+      DB_DATABASE: ${APP_ID:-app}_db
+      DB_USERNAME: ${MYSQL_USER:-admin}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-admin}
+
+  frontend:
+    container_name: ${APP_ID:-app}_frontend
+    build:
+      context: .
+      dockerfile: ./services/npm/Dockerfile
+    ports:
+      - ${VITE_PORT:-5173}:5173
+    volumes:
+      - ./frontend:/app
+
+  web:
+    container_name: ${APP_ID:-app}_web
+    build: 
+      context: ./services/nginx
+    ports:
+      - ${NGINX_PORT:-80}:80
+    environment:
+      - APP_ID=${APP_ID:-app}
+    volumes:
+      - ./backend:/var/www/html
+      - ./services/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      - backend
+      - frontend

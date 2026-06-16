@@ -1,0 +1,5 @@
+.env
+services/mysql/data
+
+.claude/
+CLAUDE.md
