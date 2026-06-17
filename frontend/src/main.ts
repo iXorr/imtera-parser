@@ -1,5 +1,22 @@
-import { createApp } from 'vue'
-import './style.css'
-import App from './App.vue'
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+import PrimeVue from "primevue/config";
+import Aura from "@primevue/themes/aura";
+import ToastService from "primevue/toastservice";
+import router from "./router";
+import App from "./App.vue";
+import "./style.css";
 
-createApp(App).mount('#app')
+createApp(App)
+  .use(createPinia())
+  .use(router)
+  .use(PrimeVue, {
+    theme: {
+      preset: Aura,
+      options: {
+        darkModeSelector: ".dark",
+      },
+    },
+  })
+  .use(ToastService)
+  .mount("#app");

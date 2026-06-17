@@ -1,7 +1,17 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import Toast from "primevue/toast";
 </script>
 
 <template>
-  <HelloWorld />
+  <Toast
+    position="top-right"
+    :pt="{
+      messageContent: {
+        style: {
+          alignItems: 'center'
+        }
+      }
+    }"
+  />
+  <RouterView />
 </template>

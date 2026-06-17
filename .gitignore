@@ -3,3 +3,6 @@ services/mysql/data
 
 .claude/
 CLAUDE.md
+
+requests.md
+*.har
