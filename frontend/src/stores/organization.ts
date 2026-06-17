@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { fetchOrganizations, fetchReviews } from "../api/organizations";
+import type { ApiErrorBody } from "../api/client";
 import type { Organization, Review } from "../api/types";
 
 export type { Organization, Review };
@@ -12,17 +13,19 @@ export const useOrganizationStore = defineStore("organization", () => {
   const currentPage = ref(1);
   const totalReviews = ref(0);
   const loading = ref(false);
+  const error = ref<ApiErrorBody | null>(null);
   const savedUrl = ref("");
 
   async function loadOrganizations() {
     loading.value = true;
 
-    try {
-      const response = await fetchOrganizations();
-      organizations.value = response.data;
-    } finally {
-      loading.value = false;
+    const result = await fetchOrganizations();
+    if (result.isOk && result.data) {
+      organizations.value = result.data.data;
     }
+
+    error.value = result.error;
+    loading.value = false;
   }
 
   async function loadReviews(page: number) {
@@ -30,10 +33,14 @@ export const useOrganizationStore = defineStore("organization", () => {
       return;
     }
 
-    const response = await fetchReviews(organization.value.id, page);
-    reviews.value = response.data;
-    currentPage.value = response.meta.current_page;
-    totalReviews.value = response.meta.total;
+    const result = await fetchReviews(organization.value.id, page);
+    if (result.isOk && result.data) {
+      reviews.value = result.data.data;
+      currentPage.value = result.data.meta.current_page;
+      totalReviews.value = result.data.meta.total;
+    }
+
+    error.value = result.error;
   }
 
   async function selectOrganization(id: number) {
@@ -71,6 +78,7 @@ export const useOrganizationStore = defineStore("organization", () => {
     totalReviews,
     currentPage,
     loading,
+    error,
     savedUrl,
     loadOrganizations,
     selectOrganization,

@@ -1,11 +1,12 @@
 import { apiFetch } from "./client";
+import type { ApiResult } from "./client";
 import type { Organization, PaginatedResponse, Review } from "./types";
 
-export function fetchOrganizations(page = 1): Promise<PaginatedResponse<Organization>> {
+export function fetchOrganizations(page = 1): Promise<ApiResult<PaginatedResponse<Organization>>> {
   return apiFetch(`/organizations?page=${page}`);
 }
 
-export function fetchReviews(organizationId: number, page = 1): Promise<PaginatedResponse<Review>> {
+export function fetchReviews(organizationId: number, page = 1): Promise<ApiResult<PaginatedResponse<Review>>> {
   return apiFetch(`/organizations/${organizationId}/reviews?page=${page}`);
 }
 
@@ -27,7 +28,7 @@ export interface CreateOrganizationPayload {
   reviews?: CreateOrganizationReviewPayload[];
 }
 
-export function createOrganization(payload: CreateOrganizationPayload): Promise<{ data: Organization }> {
+export function createOrganization(payload: CreateOrganizationPayload): Promise<ApiResult<{ data: Organization }>> {
   return apiFetch("/organizations", {
     method: "POST",
     body: JSON.stringify(payload),

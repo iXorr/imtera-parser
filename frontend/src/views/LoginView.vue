@@ -8,6 +8,10 @@ import Password from "primevue/password";
 import Button from "primevue/button";
 import Message from "primevue/message";
 import { useAuthStore } from "../stores/auth";
+import { useApiFetch } from "../composables/useApiFetch";
+import { errorMessage } from "../api/client";
+import { login } from "../api/auth";
+import type { LoginResponse } from "../api/auth";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -15,26 +19,16 @@ const toast = useToast();
 
 const email = ref("");
 const password = ref("");
-const error = ref("");
-const loading = ref(false);
+
+const { loading, error, execute } = useApiFetch<LoginResponse>();
 
 async function handleLogin() {
-  if (!email.value || !password.value) {
-    error.value = "Заполните все поля";
-    return;
-  }
+  const result = await execute(() => login(email.value, password.value));
 
-  error.value = "";
-  loading.value = true;
-
-  const ok = await auth.login(email.value, password.value);
-  loading.value = false;
-
-  if (ok) {
+  if (result.isOk && result.data) {
+    auth.setToken(result.data.token);
     toast.add({ severity: "success", summary: "Добро пожаловать!", life: 2000 });
     router.push("/settings");
-  } else {
-    error.value = "Неверный email или пароль";
   }
 }
 </script>
@@ -56,7 +50,7 @@ async function handleLogin() {
             severity="error"
             :closable="false"
           >
-            {{ error }}
+            {{ errorMessage(error) }}
           </Message>
 
           <div class="flex flex-col gap-2">

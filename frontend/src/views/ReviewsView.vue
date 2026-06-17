@@ -29,16 +29,6 @@ function onPage(event: PageState) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-
-  return new Date(dateStr).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 function initials(name: string | null): string {
   if (!name) return "?";
 
@@ -126,7 +116,7 @@ function ratingSeverity(r: number): "success" | "info" | "warn" | "danger" {
                     {{ review.reviewer_name ?? "Без имени" }}
                   </div>
                   <div class="text-xs text-surface-500 dark:text-surface-400">
-                    {{ formatDate(review.updated_time) }}
+                    {{ review.updated_time }}
                   </div>
                 </div>
               </div>

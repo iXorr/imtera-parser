@@ -18,7 +18,7 @@ class ReviewResource extends JsonResource
             'reviewer_rating' => $this->reviewer_rating,
             'reviewer_comment' => $this->reviewer_comment,
             'business_comment' => $this->business_comment,
-            'updated_time' => $this->updated_time,
+            'updated_time' => $this->updated_time?->locale('ru')->isoFormat('D MMMM YYYY'),
         ];
     }
 }

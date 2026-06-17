@@ -9,6 +9,7 @@ import Tag from "primevue/tag";
 import Message from "primevue/message";
 import ProgressSpinner from "primevue/progressspinner";
 import { useOrganizationStore } from "../stores/organization";
+import { errorMessage } from "../api/client";
 import AppLayout from "../components/AppLayout.vue";
 
 const org = useOrganizationStore();
@@ -16,27 +17,13 @@ const router = useRouter();
 const toast = useToast();
 
 const url = ref(org.savedUrl);
-const urlError = ref("");
-
-function validateUrl(value: string): boolean {
-  return value.includes("yandex.ru/maps");
-}
 
 async function handleConnect() {
-  urlError.value = "";
-
-  if (!url.value.trim()) {
-    urlError.value = "Введите ссылку на организацию";
-    return;
-  }
-
-  if (!validateUrl(url.value)) {
-    urlError.value = "Ссылка должна вести на Яндекс.Карты (yandex.ru/maps)";
-    return;
-  }
-
   await org.connect(url.value.trim());
-  toast.add({ severity: "success", summary: "Успешно", life: 3000 });
+
+  if (!org.error) {
+    toast.add({ severity: "success", summary: "Успешно", life: 3000 });
+  }
 }
 
 onMounted(() => {
@@ -63,7 +50,7 @@ onMounted(() => {
               v-model="url"
               placeholder="https://yandex.ru/maps/org/название/123456/"
               class="flex-1"
-              :invalid="!!urlError"
+              :invalid="!!org.error"
             />
             <Button
               label="Подключить"
@@ -72,12 +59,12 @@ onMounted(() => {
             />
           </div>
           <Message
-            v-if="urlError"
+            v-if="org.error"
             severity="error"
             :closable="false"
             class="mt-3"
           >
-            {{ urlError }}
+            {{ errorMessage(org.error) }}
           </Message>
           <p class="mt-3 text-sm text-surface-500 dark:text-surface-400">
             Пример: <code class="rounded bg-surface-100 px-1 py-0.5 dark:bg-surface-800">https://yandex.ru/maps/org/mcdonalds/12345/reviews/</code>
