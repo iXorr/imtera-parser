@@ -42,6 +42,16 @@ services:
     build:
       context: .
       dockerfile: ./services/scraper/Dockerfile
+    # Дефолтные 64MB /dev/shm слишком мало для Chromium под нагрузкой (хотя
+    # основной фикс — --disable-dev-shm-usage в scraper.ts; это подстраховка).
+    shm_size: 512m
+    # Без лимита headless Chromium может забрать себе все ресурсы хоста —
+    # отсюда жалобы на лаги всей машины во время скрейпа.
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
     volumes:
       - ./scraper:/app
     environment:

@@ -231,8 +231,26 @@ export async function scrapeOrganization(
   { logger = defaultLogger }: ScrapeOrganizationOptions = {},
 ): Promise<ScrapeResult> {
   const log = logger.child({ organizationUrl });
-  const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+  const browser = await chromium.launch({
+    headless: true,
+    // --disable-dev-shm-usage: Docker даёт по умолчанию только 64MB /dev/shm,
+    // Chromium активно использует shared memory для рендеринга — без этого
+    // флага под нагрузкой (сотни отзывов в DOM) браузер лагает/падает.
+    args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+  });
   const page = await browser.newPage();
+
+  // Картинки/шрифты/медиа нам не нужны — данные берём из JSON fetchReviews
+  // и SSR-блоба, а не из рендера страницы. Это ощутимо снижает нагрузку на
+  // CPU/память при сотнях отзывов с аватарками в DOM.
+  await page.route("**/*", (route) => {
+    const resourceType = route.request().resourceType();
+    if (resourceType === "image" || resourceType === "media" || resourceType === "font") {
+      return route.abort();
+    }
+
+    return route.continue();
+  });
 
   const collector = createReviewCollector();
   let summary: Summary;
