@@ -49,7 +49,7 @@ services:
       MAX_IDLE_SCROLLS: ${MAX_IDLE_SCROLLS:-5}
       FETCH_RESPONSE_TIMEOUT_MS: ${FETCH_RESPONSE_TIMEOUT_MS:-5000}
     ports:
-      - ${SCRAPER_PORT:-4000}:4000
+      - ${SCRAPER_PORT:-4000}:${SCRAPER_PORT:-4000}
 
   frontend:
     container_name: ${APP_ID:-app}_frontend
