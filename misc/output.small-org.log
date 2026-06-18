@@ -1,0 +1,28 @@
+# organization with LESS than 50 reviews
+# HERE IS A BUG!
+
+igrzb@DESKTOP-G14OTQL MINGW64 ~/Рабочий стол/yandex-scraper/src
+$ node scraper.spec.js 
+
+=== https://yandex.ru/maps/org/-/108098831680/reviews/ ===
+[goto] 2833мс
+[ssr] 85мс, отзывов после SSR: 48
+[summary] 93мс
+... прогресс: 5 сек.
+... прогресс: 10 сек.
+[scroll 1] 8018мс, статус=TIMEOUT, +0 отзывов, итого 48
+... прогресс: 15 сек.
+[scroll 2] 8003мс, статус=TIMEOUT, +0 отзывов, итого 48
+... прогресс: 20 сек.
+... прогресс: 25 сек.
+[scroll 3] 8018мс, статус=TIMEOUT, +0 отзывов, итого 48
+... прогресс: 30 сек.
+... прогресс: 35 сек.
+[scroll 4] 8007мс, статус=TIMEOUT, +0 отзывов, итого 48
+... прогресс: 40 сек.
+[scroll 5] 8016мс, статус=TIMEOUT, +0 отзывов, итого 48
+Готово за 43.5 сек.
+summary: { rating: 4.5, ratingsCount: 204, reviewsCount: 48 }
+reviews: 48
+c текстом: 48
+с ответом организации: 0
