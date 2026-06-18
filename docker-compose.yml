@@ -3,6 +3,7 @@ version: '3.8'
 services:
   db:
     container_name: ${APP_ID:-app}_db
+    restart: unless-stopped
     build:
       context: ./services/mysql
     ports:
@@ -17,13 +18,15 @@ services:
 
   backend:
     container_name: ${APP_ID:-app}_backend
-    build: 
+    restart: unless-stopped
+    build:
       context: .
       dockerfile: ./services/php/Dockerfile
     volumes:
       - ./backend:/var/www/html
     depends_on:
       - db
+      - scraper
     environment:
       DB_CONNECTION: mysql
       DB_HOST: ${APP_ID:-app}_db
@@ -32,8 +35,25 @@ services:
       DB_USERNAME: ${MYSQL_USER:-admin}
       DB_PASSWORD: ${MYSQL_PASSWORD:-admin}
 
+  scraper:
+    container_name: ${APP_ID:-app}_scraper
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./services/scraper/Dockerfile
+    volumes:
+      - ./scraper:/app
+    environment:
+      SCRAPER_PORT: ${SCRAPER_PORT:-4000}
+      TARGET_REVIEWS_COUNT: ${TARGET_REVIEWS_COUNT:-600}
+      MAX_IDLE_SCROLLS: ${MAX_IDLE_SCROLLS:-5}
+      FETCH_RESPONSE_TIMEOUT_MS: ${FETCH_RESPONSE_TIMEOUT_MS:-5000}
+    ports:
+      - ${SCRAPER_PORT:-4000}:4000
+
   frontend:
     container_name: ${APP_ID:-app}_frontend
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./services/npm/Dockerfile
@@ -46,7 +66,8 @@ services:
 
   web:
     container_name: ${APP_ID:-app}_web
-    build: 
+    restart: unless-stopped
+    build:
       context: ./services/nginx
     ports:
       - ${NGINX_PORT:-80}:80

@@ -9,11 +9,13 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
+COPY services/php/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html
 
-USER www-data
-
+ENTRYPOINT ["entrypoint.sh"]
 CMD ["php-fpm"]
 
 EXPOSE 9000

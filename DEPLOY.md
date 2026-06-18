@@ -14,10 +14,6 @@
 
 Оригинальная сборка взята с репозитория <a href="https://github.com/iXorr/app-sample">app-sample</a>.
 
-## Требования
-- Linux или WSL2 (файловая система Windows сильно замедляет работу Docker).
-- Docker (если вы используете Docker Desktop на Windows, проверьте совместимость с WSL).
-
 ## Переменные среды
 
 Скопируйте `.env.example` в `.env` и при необходимости измените значения (все, кроме **MYSQL_DATABASE**):
@@ -37,30 +33,19 @@ cp .env.example .env
 | `MYSQL_PASSWORD` | `admin` | Пароль пользователя БД |
 | `MYSQL_ROOT_PASSWORD` | `root` | Пароль root-пользователя БД |
 
+<!-- Добавить ещё переменные среды, а также описания к ним в .env.example -->
+
 > **Важно:** переменные подключения к БД в Laravel (`DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`) уже настроены через Docker и менять их вручную в `backend/.env` **не нужно**.
 
 ## Конфигурация веб-сервера
 Все запросы, начинающиеся с ``/api/``, перенаправляются Laravel-приложению - в папку ``backend/public``. Остальные же запросы перехватываются через прокси и перенаправляются фронтенду - поэтому, если он не запущен, Nginx будет выдавать ошибку.
 
-## Начало работы
-1. Сперва просто забилдите проект.
-   ```bash
-   docker compose build
-   ```
+## Запуск
 
-2. Установите зависимости для ``backend`` и ``frontend``:
-   ```
-   docker compose run --rm backend composer install
-   docker compose run --rm frontend npm install
-   ```
+Устанавливать зависимости, создавать миграции или запускать сидер вручную - не нужно. Это всё делают entrypoint-скрипты в папках сервисах.
 
-3. Запустите все сервисы:
-   ```bash
-   docker compose up -d
-   ```
+> Также, как только все контейнеры запустятся, подождите ещё некоторые время (1-2 минуты).
 
-4. Сгенерируйте ключ для Laravel и запустите миграции с сидером:
-   ```bash
-   docker compose run --rm backend php artisan key:generate
-   docker compose run --rm backend php artisan migrate --seed
-   ```
+```bash
+docker compose up -d
+```
