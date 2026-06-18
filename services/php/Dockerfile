@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y \
 
 RUN docker-php-ext-install zip pdo pdo_mysql
 
+COPY services/php/php.ini /usr/local/etc/php/conf.d/zz-app.ini
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html

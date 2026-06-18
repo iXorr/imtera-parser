@@ -18,9 +18,12 @@ class Organization extends Model
      */
     protected $fillable = [
         'business_id',
+        'url',
         'rating',
         'ratings_count',
         'reviews_count',
+        'status',
+        'last_parsed_at',
     ];
 
     /**
@@ -34,6 +37,7 @@ class Organization extends Model
             'rating' => 'decimal:1',
             'ratings_count' => 'integer',
             'reviews_count' => 'integer',
+            'last_parsed_at' => 'datetime',
         ];
     }
 }

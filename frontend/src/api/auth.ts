@@ -11,3 +11,7 @@ export function login(email: string, password: string): Promise<ApiResult<LoginR
     body: JSON.stringify({ email, password }),
   });
 }
+
+export function logout(): Promise<ApiResult<{ message: string }>> {
+  return apiFetch("/logout", { method: "POST" });
+}

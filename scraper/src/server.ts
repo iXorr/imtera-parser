@@ -3,7 +3,7 @@ import express, { type Request, type Response } from "express";
 import { pinoHttp } from "pino-http";
 import { logger } from "./logger.ts";
 import { scrapeOrganization, OrganizationNotFoundError, IncompleteScrapeError } from "./scraper.ts";
-import { toReviewsUrl, InvalidOrganizationUrlError } from "./urlNormalizer.ts";
+import { toReviewsUrl, extractBusinessId, InvalidOrganizationUrlError } from "./urlNormalizer.ts";
 
 const PORT = process.env.SCRAPER_PORT || 1234;
 
@@ -29,7 +29,9 @@ app.post("/scrape", async (req: Request, res: Response) => {
   // Нормализация до запуска браузера: URL строится сама вне зависимости от
   // входного хоста (SSRF-защита), мусорные ссылки отсекаются 400 раньше Playwright.
   let reviewsUrl: string;
+  let businessId: string;
   try {
+    businessId = extractBusinessId(organizationUrl);
     reviewsUrl = toReviewsUrl(organizationUrl);
   } catch (error) {
     if (error instanceof InvalidOrganizationUrlError) {
@@ -41,7 +43,9 @@ app.post("/scrape", async (req: Request, res: Response) => {
 
   try {
     const result = await scrapeOrganization(reviewsUrl, { logger: req.log });
-    res.json(result);
+    // businessId — top-level, чтобы вызывающая сторона (Laravel) не парсила
+    // ссылку сама, а брала канонический ID прямо из ответа.
+    res.json({ businessId, ...result });
   } catch (error) {
     if (error instanceof OrganizationNotFoundError) {
       return res.status(404).json({ error: error.message });

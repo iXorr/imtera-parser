@@ -23,6 +23,11 @@ server {
         fastcgi_pass ${APP_ID}_backend:9000; # docker container name
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+
+        # POST /api/settings ждёт scraper синхронно (1-2 минуты) — дефолтные
+        # 60s nginx и PHP-FPM убьют запрос раньше, чем он реально завершится.
+        fastcgi_read_timeout 300s;
+        fastcgi_send_timeout 300s;
     }
 
     location ~ /\.(?!vite) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
 import Card from "primevue/card";
@@ -17,6 +17,37 @@ const router = useRouter();
 const toast = useToast();
 
 const url = ref(org.savedUrl);
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Ожидание",
+  done: "Готово",
+  failed: "Ошибка",
+};
+
+const STATUS_SEVERITIES: Record<string, string> = {
+  pending: "secondary",
+  done: "success",
+  failed: "danger",
+};
+
+function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
+function statusSeverity(status: string): string {
+  return STATUS_SEVERITIES[status] ?? "secondary";
+}
+
+const elapsedLabel = computed(() => {
+  const seconds = org.elapsedSeconds;
+  if (seconds < 60) {
+    return `Процесс идёт ${seconds} сек.`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `Процесс идёт ${minutes} мин ${rest} сек.`;
+});
 
 async function handleConnect() {
   await org.connect(url.value.trim());
@@ -51,15 +82,25 @@ onMounted(() => {
               placeholder="https://yandex.ru/maps/org/название/123456/"
               class="flex-1"
               :invalid="!!org.error"
+              :disabled="org.connecting"
             />
             <Button
               label="Подключить"
-              :loading="org.loading"
+              :loading="org.connecting"
+              :disabled="org.connecting"
               @click="handleConnect"
             />
           </div>
           <Message
-            v-if="org.error"
+            v-if="org.connecting"
+            severity="info"
+            :closable="false"
+            class="mt-3"
+          >
+            {{ elapsedLabel }} — сбор отзывов с Яндекс.Карт может занять 1-2 минуты.
+          </Message>
+          <Message
+            v-else-if="org.error"
             severity="error"
             :closable="false"
             class="mt-3"
@@ -99,9 +140,15 @@ onMounted(() => {
         >
           <template #content>
             <div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <h3 class="text-xl font-semibold text-surface-900 dark:text-surface-0">
-                Организация {{ o.business_id }}
-              </h3>
+              <div class="flex items-center gap-3">
+                <h3 class="text-xl font-semibold text-surface-900 dark:text-surface-0">
+                  Организация {{ o.business_id }}
+                </h3>
+                <Tag
+                  :value="statusLabel(o.status)"
+                  :severity="statusSeverity(o.status)"
+                />
+              </div>
               <Button
                 label="Смотреть отзывы"
                 icon="pi pi-arrow-right"

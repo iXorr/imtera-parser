@@ -15,8 +15,8 @@ const org = useOrganizationStore();
 const hasOrg = computed(() => !!org.organization);
 const reviewsLink = computed(() => `/reviews/${org.organization?.id}`);
 
-const logout = () => {
-  auth.logout();
+const logout = async () => {
+  await auth.logout();
   router.push("/login");
 };
 </script>

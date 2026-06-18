@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { fetchOrganizations, fetchReviews } from "../api/organizations";
+import { connectOrganization, fetchOrganizations, fetchReviews } from "../api/organizations";
 import type { ApiErrorBody } from "../api/client";
 import type { Organization, Review } from "../api/types";
 
@@ -15,6 +15,9 @@ export const useOrganizationStore = defineStore("organization", () => {
   const loading = ref(false);
   const error = ref<ApiErrorBody | null>(null);
   const savedUrl = ref("");
+  const connecting = ref(false);
+  const elapsedSeconds = ref(0);
+  let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
   async function loadOrganizations() {
     loading.value = true;
@@ -64,7 +67,28 @@ export const useOrganizationStore = defineStore("organization", () => {
 
   async function connect(url: string) {
     savedUrl.value = url;
-    await loadOrganizations();
+    connecting.value = true;
+    elapsedSeconds.value = 0;
+    elapsedTimer = setInterval(() => {
+      elapsedSeconds.value++;
+    }, 1000);
+
+    // Скрейп идёт синхронно на бэке — этот await может занять 1-2 минуты,
+    // отдельного polling-статуса не делаем, просто ждём ответ.
+    const result = await connectOrganization(url);
+
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+    connecting.value = false;
+
+    if (result.isOk) {
+      error.value = null;
+      await loadOrganizations();
+    } else {
+      error.value = result.error;
+    }
   }
 
   function setPage(page: number) {
@@ -80,6 +104,8 @@ export const useOrganizationStore = defineStore("organization", () => {
     loading,
     error,
     savedUrl,
+    connecting,
+    elapsedSeconds,
     loadOrganizations,
     selectOrganization,
     connect,

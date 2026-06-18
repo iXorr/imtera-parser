@@ -34,3 +34,12 @@ export function createOrganization(payload: CreateOrganizationPayload): Promise<
     body: JSON.stringify(payload),
   });
 }
+
+// Скрейп идёт синхронно на бэке (1-2 минуты) — этот fetch просто ждёт ответ,
+// без отдельного polling-эндпоинта.
+export function connectOrganization(url: string): Promise<ApiResult<{ data: Organization }>> {
+  return apiFetch("/settings", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+}
