@@ -1,79 +1,103 @@
 // scraper.js
 
 import { chromium } from "playwright";
+import { logger as defaultLogger } from "./logger.js";
+import { mapReview, findReviewsArray } from "./reviews.js";
+import { parseSummary } from "./summary.js";
 
+const TARGET_REVIEWS_COUNT = parseInt(process.env.TARGET_REVIEWS_COUNT, 10) || 500;
+const MAX_IDLE_SCROLLS = parseInt(process.env.MAX_IDLE_SCROLLS, 10) || 5;
+const FETCH_RESPONSE_TIMEOUT_MS = parseInt(process.env.FETCH_RESPONSE_TIMEOUT_MS, 10) || 8000;
+
+// itemprop-атрибуты стабильны между локалями (yandex.ru/yandex.com/en), в
+// отличие от CSS-классов шапки рейтинга
+const AGGREGATE_RATING_SELECTOR = '[itemprop="aggregateRating"]';
+const REVIEWS_LIST_SELECTOR = ".business-reviews-card-view__reviews-container";
 const FETCH_REVIEWS_PATH = "/maps/api/business/fetchReviews";
 
-// должно быть кратно пятидесяти (тип, сколько страниц)
-const TARGET_REVIEWS_COUNT = 500;
-const MAX_IDLE_SCROLLS = 5;
-// schema.org-микроразметка вместо CSS-классов (.business-rating-badge-view__rating-text
-// и т.п.) — подтверждено, что разметка/классы рейтинга в шапке зависят от локали
-// рендера (yandex.ru vs yandex.com/en даёт только SVG-звёзды без текстового узла),
-// а itemprop-атрибуты остаются стабильными.
-const AGGREGATE_RATING_SELECTOR = '[itemprop="aggregateRating"]';
-// Подтверждено через DevTools (см. scraper/src/outer-element.txt — снят outerHTML
-// именно этого элемента): список отзывов рендерится внутри
-// .business-reviews-card-view__reviews-container.
-const REVIEWS_LIST_SELECTOR = ".business-reviews-card-view__reviews-container";
-const FETCH_RESPONSE_TIMEOUT_MS = 8000;
-
-function mapReview(review) {
-  return {
-    reviewId: review.reviewId,
-    businessId: review.businessId,
-    authorName: review.author?.name ?? null,
-    authorAvatarUrl: review.author?.avatarUrl ?? null,
-    rating: review.rating ?? null,
-    text: review.text ?? null,
-    businessComment: review.businessComment?.text ?? null,
-    updatedTime: review.updatedTime ?? null,
-  };
+// Отличает "организация не найдена" от прочих сбоев (сеть, краш браузера)
+export class OrganizationNotFoundError extends Error {
+  constructor(organizationUrl) {
+    super(`Карточка организации не найдена по ссылке: ${organizationUrl}`);
+    this.name = "OrganizationNotFoundError";
+    this.organizationUrl = organizationUrl;
+  }
 }
 
-// Рекурсивно ищем массив отзывов внутри hydration-state — точный путь внутри
-// объекта нестабилен между организациями/прогонами, поэтому не хардкодим его.
-function findReviewsArray(obj) {
-  if (!obj || typeof obj !== "object") {
-    return null;
+// Цикл скролла завершился по MAX_IDLE_SCROLLS, не дойдя ни до запрошенного
+// лимита, ни до реального числа отзывов организации — типичный симптом
+// нестабильной сети (см. VPN-кейс), а не "органически закончились отзывы".
+export class IncompleteScrapeError extends Error {
+  constructor({ organizationUrl, collected, targetReviewsCount, reviewsCount }) {
+    super(
+      `Скрейп прерван раньше времени: собрано ${collected} отзывов из ${targetReviewsCount} запрошенных ` +
+        `(всего отзывов по данным Яндекса: ${reviewsCount ?? "неизвестно"}) для ${organizationUrl}`
+    );
+    this.name = "IncompleteScrapeError";
+    this.organizationUrl = organizationUrl;
+    this.collected = collected;
+    this.targetReviewsCount = targetReviewsCount;
+    this.reviewsCount = reviewsCount;
   }
+}
 
-  if (Array.isArray(obj.reviews) && obj.reviews[0]?.reviewId) {
-    return obj.reviews;
-  }
+// Дедуп по reviewId в одном месте — и SSR-партия, и каждый ответ fetchReviews
+// проходят через один и тот же Set, иначе один и тот же отзыв может прийти
+// дважды (повторный fetchReviews после неудачного скролла и т.п.).
+function createReviewCollector() {
+  const reviews = [];
+  const seenReviewIds = new Set();
 
-  for (const value of Object.values(obj)) {
-    const found = findReviewsArray(value);
-    if (found) {
-      return found;
+  function addReviews(newReviews) {
+    for (const review of newReviews) {
+      if (review.reviewId && !seenReviewIds.has(review.reviewId)) {
+        seenReviewIds.add(review.reviewId);
+        reviews.push(review);
+      }
     }
   }
 
-  return null;
-}
-
-// Первая партия отзывов (~50) рендерится сервером прямо в HTML (сырой JSON в
-// одном из <script>-тегов) — без отдельного запроса. fetchReviews срабатывает
-// только на скролле и отдаёт ТОЛЬКО следующие страницы; без этого шага первая
-// страница тихо терялась бы при каждом скрейпе.
-async function getSsrReviews(page) {
-  const scripts = await page.evaluate(() => Array.from(document.scripts).map((s) => s.textContent));
-
-  const candidate = scripts.find((text) => text.includes("reviewResults"));
-  if (!candidate) {
-    return [];
+  async function addFromResponse(response) {
+    const body = await response.json().catch(() => null);
+    addReviews((body?.data?.reviews ?? []).map(mapReview));
   }
 
-  const data = JSON.parse(candidate);
-  return (findReviewsArray(data) ?? []).map(mapReview);
+  return { reviews, addReviews, addFromResponse };
 }
 
-// rating/ratingsCount/reviewsCount организации не приходят в ответе fetchReviews
-// (подтверждено на живом трафике, см. yandex.ru.har) — все три читаются из
-// schema.org AggregateRating-разметки в шапке карточки организации вместо
-// отдельного API-эндпоинта. reviewsCount также используется для детекта
-// софт-бана (см. ScrapeOrganizationJob).
-async function getSummary(page) {
+// domcontentloaded, не networkidle — фоновая телеметрия SPA не даёт сети
+// затихнуть. state: "attached", не "visible" — разметка для роботов
+// визуально скрыта. Если за 15с не появилась — невалидная/несуществующая
+// организация.
+async function loadOrganizationPage(page, organizationUrl, log) {
+  const start = Date.now();
+  await page.goto(organizationUrl, { waitUntil: "domcontentloaded" });
+
+  try {
+    await page.locator(AGGREGATE_RATING_SELECTOR).first().waitFor({ state: "attached", timeout: 15000 });
+  } catch {
+    log.warn("organization not found");
+    throw new OrganizationNotFoundError(organizationUrl);
+  }
+
+  log.info({ ms: Date.now() - start }, "goto");
+}
+
+// Первая партия (~50) приходит в SSR-HTML, fetchReviews отдаёт только следующие страницы
+async function loadSsrReviews(page, log) {
+  const start = Date.now();
+
+  const scripts = await page.evaluate(() => Array.from(document.scripts).map((s) => s.textContent));
+  const candidate = scripts.find((text) => text.includes("reviewResults"));
+  const reviews = candidate ? (findReviewsArray(JSON.parse(candidate)) ?? []).map(mapReview) : [];
+
+  log.info({ ms: Date.now() - start, reviewsCount: reviews.length }, "ssr");
+  return reviews;
+}
+
+// rating/ratingsCount/reviewsCount не приходят в fetchReviews — читаем из schema.org-разметки
+async function loadSummary(page, log) {
+  const start = Date.now();
   const scope = page.locator(AGGREGATE_RATING_SELECTOR).first();
 
   const readMeta = (itemprop) =>
@@ -83,25 +107,20 @@ async function getSummary(page) {
       .getAttribute("content", { timeout: 12000 })
       .catch(() => null);
 
-  const [rating, ratingsCount, reviewsCount] = await Promise.all([
-    readMeta("ratingValue").then((value) => (value === null ? null : parseFloat(value))),
-    readMeta("ratingCount").then((value) => (value === null ? null : parseInt(value, 10))),
-    readMeta("reviewCount").then((value) => (value === null ? null : parseInt(value, 10))),
+  const [ratingValue, ratingCount, reviewCount] = await Promise.all([
+    readMeta("ratingValue"),
+    readMeta("ratingCount"),
+    readMeta("reviewCount"),
   ]);
 
-  return { rating, ratingsCount, reviewsCount };
+  const summary = parseSummary({ ratingValue, ratingCount, reviewCount });
+  log.info({ ms: Date.now() - start, ...summary }, "summary");
+  return summary;
 }
 
-// mouse.wheel(0, 3000) двигает скролл на фиксированную дельту независимо от
-// текущей высоты списка — после нескольких десятков подгруженных отзывов
-// список растёт быстрее этой дельты, и реальный низ контейнера уезжает дальше
-// одной wheel-прокрутки (см. output.txt: серии из 4 TIMEOUT перед каждым +50,
-// пока несколько wheel-шагов подряд не дотягивались до настоящего конца).
-// Вместо этого выставляем scrollTop = scrollHeight напрямую на прокручиваемом
-// контейнере — это не зависит от высоты списка и долетает до низа за один шаг.
-// Сам REVIEWS_LIST_SELECTOR может не быть прокручиваемым элементом (overflow
-// часто вешают на родителя), поэтому поднимаемся по дереву до первого предка
-// с overflow-y: auto/scroll и реальным переполнением.
+// scrollTop = scrollHeight вместо wheel-дельты — долетает до низа за один шаг
+// независимо от высоты списка. REVIEWS_LIST_SELECTOR сам может быть не
+// прокручиваемым (overflow часто на родителе) — поднимаемся по дереву до него.
 async function scrollReviewsToBottom(page) {
   return page.evaluate((selector) => {
     function findScrollable(start) {
@@ -131,99 +150,94 @@ async function scrollReviewsToBottom(page) {
   }, REVIEWS_LIST_SELECTOR);
 }
 
-export async function scrapeOrganization(organizationUrl) {
+// Ждём реальный ответ fetchReviews вместо фиксированной паузы. Останов по
+// targetReviewsCount (достигли лимита/реального числа отзывов) или по
+// MAX_IDLE_SCROLLS подряд без новых отзывов (страховка от бесконечного
+// цикла).
+async function scrollForMoreReviews({ page, log, collector, targetReviewsCount }) {
+  let idleScrolls = 0;
+  let iteration = 0;
+
+  while (collector.reviews.length < targetReviewsCount && idleScrolls < MAX_IDLE_SCROLLS) {
+    iteration++;
+    const before = collector.reviews.length;
+    const tScrollStart = Date.now();
+
+    await scrollReviewsToBottom(page);
+
+    const response = await page
+      .waitForResponse((r) => r.url().includes(FETCH_REVIEWS_PATH), { timeout: FETCH_RESPONSE_TIMEOUT_MS })
+      .catch(() => null);
+
+    if (response) {
+      await collector.addFromResponse(response);
+    }
+
+    const elapsed = Date.now() - tScrollStart;
+    const gained = collector.reviews.length - before;
+    const status = response ? "ok" : "timeout";
+    log.info({ iteration, ms: elapsed, status, gained, total: collector.reviews.length }, "scroll");
+
+    idleScrolls = collector.reviews.length === before ? idleScrolls + 1 : 0;
+  }
+}
+
+// Цикл скролла мог выйти либо по достижению targetReviewsCount, либо по
+// MAX_IDLE_SCROLLS. Первое — ожидаемо (упёрлись в лимит или у организации
+// физически меньше отзывов). Если не совпало ни с одним числом — значит
+// выдохлись раньше времени, обычно потому, что fetchReviews перестал
+// отвечать (нестабильная сеть), а не потому, что отзывы закончились.
+function assertScrapeComplete({ organizationUrl, log, collected, targetReviewsCount, reviewsCount }) {
+  const reachedTarget = collected === targetReviewsCount;
+  const reachedActualTotal = reviewsCount != null && collected === reviewsCount;
+  if (reachedTarget || reachedActualTotal) {
+    return;
+  }
+
+  log.warn({ collected, targetReviewsCount, reviewsCount }, "incomplete scrape");
+  throw new IncompleteScrapeError({ organizationUrl, collected, targetReviewsCount, reviewsCount });
+}
+
+// logger принимается снаружи (по умолчанию — общий синглтон из logger.js),
+// чтобы server.js мог передать request-scoped логгер (pino-http child с
+// req.id) и привязать все логи скрейпа к конкретному HTTP-запросу.
+export async function scrapeOrganization(organizationUrl, { logger = defaultLogger } = {}) {
+  const log = logger.child({ organizationUrl });
   const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
   const page = await browser.newPage();
 
-  const reviews = [];
-  const seenReviewIds = new Set();
+  const collector = createReviewCollector();
   let summary = { rating: null, ratingsCount: null, reviewsCount: null };
 
-  function addReviews(newReviews) {
-    for (const review of newReviews) {
-      if (review.reviewId && !seenReviewIds.has(review.reviewId)) {
-        seenReviewIds.add(review.reviewId);
-        reviews.push(review);
-      }
-    }
-  }
-
-  async function extractReviewsFromResponse(response) {
-    const body = await response.json().catch(() => null);
-    return (body?.data?.reviews ?? []).map(mapReview);
-  }
-
   page.on("response", async (response) => {
-    if (!response.url().includes(FETCH_REVIEWS_PATH)) {
-      return;
+    if (response.url().includes(FETCH_REVIEWS_PATH)) {
+      await collector.addFromResponse(response);
     }
-
-    addReviews(await extractReviewsFromResponse(response));
   });
 
   try {
-    const tGotoStart = Date.now();
-    // ЗАМЕНЕНО: networkidle -> domcontentloaded + явный wait на нужный селектор.
-    // networkidle ждёт паузу 500мс без сетевых запросов, что на SPA с фоновой
-    // телеметрией/аналитикой может никогда не наступить раньше собственного
-    // таймаута Playwright — это лишние секунды/десятки секунд впустую.
-    await page.goto(organizationUrl, { waitUntil: "domcontentloaded" });
-    // state: "attached", не "visible" (дефолт) — itemprop="aggregateRating"
-    // это schema.org-микроразметка для поисковых роботов, она присутствует в DOM,
-    // но визуально скрыта (display:none/нулевые размеры), поэтому ждать
-    // видимости здесь бессмысленно и приводит к ложному таймауту.
-    await page.locator(AGGREGATE_RATING_SELECTOR).first().waitFor({ state: "attached", timeout: 15000 });
-    console.log(`[goto] ${Date.now() - tGotoStart}мс`);
+    await loadOrganizationPage(page, organizationUrl, log);
 
-    const tSsrStart = Date.now();
-    addReviews(await getSsrReviews(page));
-    console.log(`[ssr] ${Date.now() - tSsrStart}мс, отзывов после SSR: ${reviews.length}`);
+    collector.addReviews(await loadSsrReviews(page, log));
+    summary = await loadSummary(page, log);
 
-    const tSummaryStart = Date.now();
-    summary = await getSummary(page);
-    console.log(`[summary] ${Date.now() - tSummaryStart}мс`);
-
-    // Ждём реальный ответ fetchReviews вместо фиксированной паузы — пауза по
-    // часам (800мс) на медленной сети ложно засчитывала "пусто" и обрывала
-    // ленту раньше времени, хотя данные ещё шли (см. живой прогон scraper.spec.js
-    // 2026-06-18: 100 вместо ожидаемых сотен отзывов).
-    //
-    // targetReviewsCount ограничен summary.reviewsCount: у организаций с малым
-    // числом отзывов (всё уже отдано через SSR) цикл иначе впустую тратит
-    // MAX_IDLE_SCROLLS * FETCH_RESPONSE_TIMEOUT_MS на TIMEOUT-ы, т.к. скроллить
-    // больше нечего. MAX_IDLE_SCROLLS всё равно остаётся страховкой — reviewsCount
-    // может быть занижен/завышен относительно реально доступных в DOM отзывов.
+    // Ограничиваем summary.reviewsCount — иначе при малом числе отзывов (всё уже
+    // отдано через SSR) цикл впустую тратит MAX_IDLE_SCROLLS таймаутов на скролл
     const targetReviewsCount =
       summary.reviewsCount != null ? Math.min(TARGET_REVIEWS_COUNT, summary.reviewsCount) : TARGET_REVIEWS_COUNT;
-    let idleScrolls = 0;
-    let iteration = 0;
-    while (reviews.length < targetReviewsCount && idleScrolls < MAX_IDLE_SCROLLS) {
-      iteration++;
-      const before = reviews.length;
-      const tScrollStart = Date.now();
 
-      await scrollReviewsToBottom(page);
+    await scrollForMoreReviews({ page, log, collector, targetReviewsCount });
 
-      const response = await page
-        .waitForResponse((r) => r.url().includes(FETCH_REVIEWS_PATH), { timeout: FETCH_RESPONSE_TIMEOUT_MS })
-        .catch(() => null);
-
-      if (response) {
-        addReviews(await extractReviewsFromResponse(response));
-      }
-
-      const elapsed = Date.now() - tScrollStart;
-      const gained = reviews.length - before;
-      const status = response ? "ok" : "TIMEOUT";
-      console.log(
-        `[scroll ${iteration}] ${elapsed}мс, статус=${status}, +${gained} отзывов, итого ${reviews.length}`
-      );
-
-      idleScrolls = reviews.length === before ? idleScrolls + 1 : 0;
-    }
+    assertScrapeComplete({
+      organizationUrl,
+      log,
+      collected: collector.reviews.length,
+      targetReviewsCount,
+      reviewsCount: summary.reviewsCount,
+    });
   } finally {
     await browser.close();
   }
 
-  return { summary, reviews };
+  return { summary, reviews: collector.reviews };
 }

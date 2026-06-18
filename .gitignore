@@ -1,1 +1,6 @@
 node_modules/
+logs/
+misc/
+
+CLAUDE.md
+.env
