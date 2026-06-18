@@ -1,4 +1,4 @@
-import { mapReview, findReviewsArray } from "../../src/reviews.js";
+import { mapReview, findReviewsArray } from "../../src/reviews.ts";
 
 describe("mapReview", () => {
   test("маппит все поля из полного объекта отзыва", () => {

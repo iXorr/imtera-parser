@@ -1,8 +1,10 @@
-// fixtures.js
-// Именованные кейсы для ручных прогонов scrapeOrganization (см. test/run.js).
-// note — откуда взят URL/чем интересен кейс, не используется в коде.
+export interface Fixture {
+  id: string;
+  url: string;
+  note: string;
+}
 
-export const fixtures = [
+export const fixtures: Fixture[] = [
   {
     id: "invalid-url",
     url: "https://yandex.ru/maps/org/-/invalid/reviews/",

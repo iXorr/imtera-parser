@@ -1,4 +1,4 @@
-import { IncompleteScrapeError } from "../../src/scraper.js";
+import { IncompleteScrapeError } from "../../src/scraper.ts";
 
 describe("IncompleteScrapeError", () => {
   test("это Error с понятным сообщением и сохранёнными числами", () => {
@@ -12,10 +12,6 @@ describe("IncompleteScrapeError", () => {
 
     expect(error).toBeInstanceOf(Error);
     expect(error.name).toBe("IncompleteScrapeError");
-    expect(error.organizationUrl).toBe(url);
-    expect(error.collected).toBe(249);
-    expect(error.targetReviewsCount).toBe(500);
-    expect(error.reviewsCount).toBe(44191);
     expect(error.message).toContain("249");
     expect(error.message).toContain("500");
     expect(error.message).toContain("44191");

@@ -1,4 +1,4 @@
-import { parseSummary } from "../../src/summary.js";
+import { parseSummary } from "../../src/summary.ts";
 
 describe("parseSummary", () => {
   test("парсит строки из schema.org-разметки в числа", () => {

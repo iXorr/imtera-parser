@@ -1,11 +1,9 @@
-// run.js
-// Ручной прогон scrapeOrganization по одному или всем кейсам из fixtures.js.
-// Не CI-тест: реальный сетевой доступ к yandex.ru, печатает таймлайн в консоль.
+// Ручной прогон, не CI-тест: реальный сетевой доступ к yandex.ru
 
-import { scrapeOrganization } from "../../src/scraper.js";
-import { fixtures } from "./fixtures.js";
+import { scrapeOrganization } from "../../src/scraper.ts";
+import { fixtures, type Fixture } from "./fixtures.ts";
 
-function resolveCases(selector) {
+function resolveCases(selector: string | undefined): Fixture[] {
   if (!selector) {
     return fixtures;
   }
@@ -19,11 +17,10 @@ function resolveCases(selector) {
   return [found];
 }
 
-// Прогресс-бар через process.stdout.write с \r конфликтует визуально с pino:
-// оба пишут в один stdout без координации. Решение: логировать секунды через
-// console.log с префиксом — отдельные строки, без перезаписи курсора.
-async function scrapeWithProgressLog(url) {
+// \r-прогресс-бар конфликтует визуально с pino в том же stdout — логируем отдельными строками
+async function scrapeWithProgressLog(url: string) {
   const tStart = Date.now();
+
   try {
     return await scrapeOrganization(url);
   } finally {
@@ -32,11 +29,12 @@ async function scrapeWithProgressLog(url) {
 }
 
 async function main() {
-  let cases;
+  let cases: Fixture[];
+
   try {
     cases = resolveCases(process.argv[2]);
   } catch (error) {
-    console.error(`Ошибка: ${error.message}`);
+    console.error(`Ошибка: ${(error as Error).message}`);
     process.exitCode = 1;
     return;
   }
@@ -52,7 +50,7 @@ async function main() {
       console.log("c текстом:", result.reviews.filter((r) => r.text !== null).length);
       console.log("с ответом организации:", result.reviews.filter((r) => r.businessComment !== null).length);
     } catch (error) {
-      console.error(`Ошибка: ${error.message}`);
+      console.error(`Ошибка: ${(error as Error).message}`);
     }
   }
 }

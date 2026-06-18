@@ -1,4 +1,4 @@
-import { extractBusinessId, toReviewsUrl, InvalidOrganizationUrlError } from "../../src/urlNormalizer.js";
+import { extractBusinessId, toReviewsUrl, InvalidOrganizationUrlError } from "../../src/urlNormalizer.ts";
 
 describe("extractBusinessId", () => {
   test("каноническая ссылка вида /maps/org/-/<id>/reviews/", () => {
@@ -7,7 +7,7 @@ describe("extractBusinessId", () => {
 
   test("ссылка со слагом организации вместо дефиса", () => {
     expect(extractBusinessId("https://yandex.ru/maps/org/gosudarstvenny_ermitazh/1057721048/?ll=1,2")).toBe(
-      "1057721048"
+      "1057721048",
     );
   });
 
@@ -38,13 +38,13 @@ describe("extractBusinessId", () => {
 describe("toReviewsUrl", () => {
   test("всегда строит канонический yandex.ru-url независимо от исходного хоста", () => {
     expect(toReviewsUrl("https://yandex.com/maps/org/-/1057721048/reviews/")).toBe(
-      "https://yandex.ru/maps/org/-/1057721048/reviews/"
+      "https://yandex.ru/maps/org/-/1057721048/reviews/",
     );
   });
 
   test("игнорирует хост входной ссылки даже если он не yandex (SSRF-защита)", () => {
     expect(toReviewsUrl("https://evil.example/maps/org/-/1057721048/reviews/")).toBe(
-      "https://yandex.ru/maps/org/-/1057721048/reviews/"
+      "https://yandex.ru/maps/org/-/1057721048/reviews/",
     );
   });
 });
