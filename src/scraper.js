@@ -3,7 +3,9 @@
 import { chromium } from "playwright";
 
 const FETCH_REVIEWS_PATH = "/maps/api/business/fetchReviews";
-const TARGET_REVIEWS_COUNT = 600;
+
+// должно быть кратно пятидесяти (тип, сколько страниц)
+const TARGET_REVIEWS_COUNT = 500;
 const MAX_IDLE_SCROLLS = 5;
 // schema.org-микроразметка вместо CSS-классов (.business-rating-badge-view__rating-text
 // и т.п.) — подтверждено, что разметка/классы рейтинга в шапке зависят от локали
