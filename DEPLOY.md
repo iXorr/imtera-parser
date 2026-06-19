@@ -32,8 +32,10 @@ cp .env.example .env
 | `MYSQL_USER` | `admin` | Пользователь БД |
 | `MYSQL_PASSWORD` | `admin` | Пароль пользователя БД |
 | `MYSQL_ROOT_PASSWORD` | `root` | Пароль root-пользователя БД |
-
-<!-- Добавить ещё переменные среды, а также описания к ним в .env.example -->
+| `SCRAPER_PORT` | `4000` | Порт `scraper` |
+| `TARGET_REVIEWS_COUNT` | `500` | Сколько отзывов максимум собирать за один скрейп (кратно 50, не больше ~600 — это лимит самого Яндекса) |
+| `MAX_IDLE_SCROLLS` | `5` | Сколько подряд скроллов без новых отзывов считать концом списка |
+| `FETCH_RESPONSE_TIMEOUT_MS` | `5000` | Таймаут ожидания ответа `fetchReviews` на одной попытке скролла |
 
 > **Важно:** переменные подключения к БД в Laravel (`DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`) уже настроены через Docker и менять их вручную в `backend/.env` **не нужно**.
 
