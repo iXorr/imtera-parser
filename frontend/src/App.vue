@@ -10,6 +10,11 @@ import Toast from "primevue/toast";
         style: {
           alignItems: 'center'
         }
+      },
+      messageIcon: {
+        style: {
+          display: 'none'
+        }
       }
     }"
   />

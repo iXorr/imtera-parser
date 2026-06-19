@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ReviewFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Review extends Model
 {
@@ -38,5 +39,11 @@ class Review extends Model
             'reviewer_rating' => 'integer',
             'updated_time' => 'datetime',
         ];
+    }
+
+    /** @return BelongsTo<Organization, $this> */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'business_id', 'business_id');
     }
 }

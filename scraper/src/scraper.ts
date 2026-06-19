@@ -4,6 +4,7 @@ import type { Logger } from "pino";
 import { logger as defaultLogger } from "./logger.ts";
 import { mapReview, findReviewsArray, type MappedReview } from "./reviews.ts";
 import { parseSummary, type Summary } from "./summary.ts";
+import { parseOrganizationName } from "./organizationName.ts";
 
 const TARGET_REVIEWS_COUNT = parseInt(process.env.TARGET_REVIEWS_COUNT ?? "", 10) || 500;
 const MAX_IDLE_SCROLLS = parseInt(process.env.MAX_IDLE_SCROLLS ?? "", 10) || 5;
@@ -68,12 +69,18 @@ function createReviewCollector(): ReviewCollector {
 
 // domcontentloaded: networkidle не наступает из-за фоновой телеметрии SPA.
 // attached, не visible: разметка для роботов визуально скрыта.
+//
+// Раньше существование карточки проверялось по AGGREGATE_RATING_SELECTOR —
+// но это блок именно общего рейтинга, а не самой карточки: у организаций без
+// единой оценки (например, у кладбищ) он не рендерится вовсе, хотя страница
+// и отзывы на ней — настоящие. REVIEWS_LIST_SELECTOR — контейнер списка
+// отзывов, он есть всегда, если мы попали на реальную карточку организации.
 async function loadOrganizationPage(page: Page, organizationUrl: string, log: Logger): Promise<void> {
   const start = Date.now();
   await page.goto(organizationUrl, { waitUntil: "domcontentloaded" });
 
   try {
-    await page.locator(AGGREGATE_RATING_SELECTOR).first().waitFor({ state: "attached", timeout: 15000 });
+    await page.locator(REVIEWS_LIST_SELECTOR).first().waitFor({ state: "attached", timeout: 15000 });
   } catch {
     log.warn("organization not found");
     throw new OrganizationNotFoundError(organizationUrl);
@@ -115,6 +122,15 @@ async function loadSummary(page: Page, log: Logger): Promise<Summary> {
   const summary = parseSummary({ ratingValue, ratingCount, reviewCount });
   log.info({ ms: Date.now() - start, ...summary }, "summary");
   return summary;
+}
+
+// Имя организации берём из <title> страницы, а не из микроразметки — title
+// есть всегда и не зависит от того, нашли мы нужный itemscope или нет.
+async function loadOrganizationName(page: Page, log: Logger): Promise<string | null> {
+  const start = Date.now();
+  const name = parseOrganizationName(await page.title());
+  log.info({ ms: Date.now() - start, name }, "title");
+  return name;
 }
 
 // scrollTop = scrollHeight долетает до низа за один шаг. Список сам может быть
@@ -198,6 +214,12 @@ interface AssertScrapeCompleteOptions {
 
 // Не совпало ни с target, ни с реальным reviewsCount — обрыв раньше времени
 // (обычно нестабильная сеть), а не органический конец отзывов.
+//
+// Если reviewsCount неизвестен (нет aggregateRating-блока — например, у
+// организаций без общего рейтинга), сверять collected не с чем: target в
+// этом случае — это TARGET_REVIEWS_COUNT "на удачу", а не реальный размер
+// списка. Цикл скролла мог дойти до настоящего конца списка раньше target —
+// это не обрыв, а органический конец, ошибкой считать нечего.
 function assertScrapeComplete({
   organizationUrl,
   log,
@@ -207,7 +229,8 @@ function assertScrapeComplete({
 }: AssertScrapeCompleteOptions): void {
   const reachedTarget = collected === targetReviewsCount;
   const reachedActualTotal = reviewsCount != null && collected === reviewsCount;
-  if (reachedTarget || reachedActualTotal) {
+  const unknownTotal = reviewsCount == null;
+  if (reachedTarget || reachedActualTotal || unknownTotal) {
     return;
   }
 
@@ -220,6 +243,7 @@ export interface ScrapeOrganizationOptions {
 }
 
 export interface ScrapeResult {
+  name: string | null;
   summary: Summary;
   reviews: MappedReview[];
 }
@@ -254,6 +278,7 @@ export async function scrapeOrganization(
 
   const collector = createReviewCollector();
   let summary: Summary;
+  let name: string | null;
 
   page.on("response", async (response) => {
     if (response.url().includes(FETCH_REVIEWS_PATH)) {
@@ -266,6 +291,7 @@ export async function scrapeOrganization(
 
     collector.addReviews(await loadSsrReviews(page, log));
     summary = await loadSummary(page, log);
+    name = await loadOrganizationName(page, log);
 
     // Капаем по summary.reviewsCount — иначе при малом числе
     // отзывов скролл впустую жжёт все MAX_IDLE_SCROLLS таймаутов
@@ -286,5 +312,5 @@ export async function scrapeOrganization(
     await browser.close();
   }
 
-  return { summary, reviews: collector.reviews };
+  return { name, summary, reviews: collector.reviews };
 }

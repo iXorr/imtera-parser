@@ -57,7 +57,8 @@ app.post("/scrape", async (req: Request, res: Response) => {
     }
 
     req.log.error({ err: error }, "scrape failed");
-    res.status(500).json({ error: "scrape's internal error" });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Внутренняя ошибка scraper'а: ${message}` });
   }
 });
 

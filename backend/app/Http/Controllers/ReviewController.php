@@ -6,14 +6,12 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 use App\Http\Resources\ReviewResource;
 use App\Models\Organization;
-use App\Models\Review;
 
 class ReviewController extends Controller
 {
     public function index(Organization $organization): AnonymousResourceCollection
     {
-        $reviews = Review::query()
-            ->where('business_id', $organization->business_id)
+        $reviews = $organization->reviews()
             ->orderByDesc('updated_time')
             ->paginate(50);
 

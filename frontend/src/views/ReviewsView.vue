@@ -25,8 +25,8 @@ watch(organizationId, (id) => {
 }, { immediate: true });
 
 function onPage(event: PageState) {
+  window.scrollTo({ top: 0, behavior: "instant" });
   org.setPage(event.page + 1);
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function initials(name: string | null): string {
@@ -66,8 +66,11 @@ function ratingSeverity(r: number): "success" | "info" | "warn" | "danger" {
         <template #content>
           <div>
             <h1 class="text-xl font-semibold text-surface-900 dark:text-surface-0">
-              Организация #{{ org.organization.business_id }}
+              {{ org.organization.name ?? `Организация #${org.organization.business_id}` }}
             </h1>
+            <p class="mt-1 text-sm text-surface-500 dark:text-surface-400">
+              #{{ org.organization.business_id }}
+            </p>
           </div>
           <div class="mt-6 flex flex-wrap items-center gap-6 border-t border-surface-200 pt-6 dark:border-surface-700">
             <div class="flex flex-col items-center gap-1">
@@ -97,7 +100,17 @@ function ratingSeverity(r: number): "success" | "info" | "warn" | "danger" {
       </Card>
 
       <!-- Reviews list -->
-      <div class="flex flex-col gap-4">
+      <div
+        v-if="org.loading || org.reviewsLoading"
+        class="flex justify-center py-8"
+      >
+        <ProgressSpinner style="width: 40px; height: 40px" />
+      </div>
+
+      <div
+        v-else
+        class="flex flex-col gap-4"
+      >
         <Card
           v-for="review in org.reviews"
           :key="review.id"
@@ -106,8 +119,8 @@ function ratingSeverity(r: number): "success" | "info" | "warn" | "danger" {
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex items-center gap-3">
                 <Avatar
-                  :image="review.reviewer_avatar_url ?? '/default-avatar.jpg'"
-                  :label="review.reviewer_avatar_url ? undefined : initials(review.reviewer_name)"
+                  :image="review.reviewer_name ? undefined : '/default-avatar.jpg'"
+                  :label="review.reviewer_name ? initials(review.reviewer_name) : undefined"
                   shape="circle"
                 />
 
@@ -152,7 +165,7 @@ function ratingSeverity(r: number): "success" | "info" | "warn" | "danger" {
         :first="first"
         :rows="50"
         :total-records="org.totalReviews"
-        :rows-per-page-options="[]"
+        template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
         @page="onPage"
       />
     </div>

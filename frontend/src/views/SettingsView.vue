@@ -2,11 +2,13 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useToast } from "primevue/usetoast";
+import type { PageState } from "primevue/paginator";
 import Card from "primevue/card";
 import InputText from "primevue/inputtext";
 import Button from "primevue/button";
 import Tag from "primevue/tag";
 import Message from "primevue/message";
+import Paginator from "primevue/paginator";
 import ProgressSpinner from "primevue/progressspinner";
 import { useOrganizationStore } from "../stores/organization";
 import { errorMessage } from "../api/client";
@@ -18,24 +20,11 @@ const toast = useToast();
 
 const url = ref(org.savedUrl);
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Ожидание",
-  done: "Готово",
-  failed: "Ошибка",
-};
+const first = computed(() => (org.organizationsPage - 1) * org.organizationsPerPage);
 
-const STATUS_SEVERITIES: Record<string, string> = {
-  pending: "secondary",
-  done: "success",
-  failed: "danger",
-};
-
-function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status;
-}
-
-function statusSeverity(status: string): string {
-  return STATUS_SEVERITIES[status] ?? "secondary";
+function onPage(event: PageState) {
+  org.loadOrganizations(event.page + 1);
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 const elapsedLabel = computed(() => {
@@ -52,7 +41,9 @@ const elapsedLabel = computed(() => {
 async function handleConnect() {
   await org.connect(url.value.trim());
 
-  if (!org.error) {
+  if (org.error) {
+    toast.add({ severity: "error", summary: "Ошибка", detail: errorMessage(org.error), life: 5000 });
+  } else {
     toast.add({ severity: "success", summary: "Успешно", life: 3000 });
   }
 }
@@ -107,9 +98,6 @@ onMounted(() => {
           >
             {{ errorMessage(org.error) }}
           </Message>
-          <p class="mt-3 text-sm text-surface-500 dark:text-surface-400">
-            Пример: <code class="rounded bg-surface-100 px-1 py-0.5 dark:bg-surface-800">https://yandex.ru/maps/org/mcdonalds/12345/reviews/</code>
-          </p>
         </template>
       </Card>
 
@@ -140,19 +128,19 @@ onMounted(() => {
         >
           <template #content>
             <div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <div class="flex items-center gap-3">
+              <div class="min-w-0 flex-1">
                 <h3 class="text-xl font-semibold text-surface-900 dark:text-surface-0">
-                  Организация {{ o.business_id }}
+                  {{ o.name ?? `Организация ${o.business_id}` }}
                 </h3>
-                <Tag
-                  :value="statusLabel(o.status)"
-                  :severity="statusSeverity(o.status)"
-                />
+                <p class="mt-1 text-sm text-surface-500 dark:text-surface-400">
+                  ID организации: {{ o.business_id }}
+                </p>
               </div>
               <Button
                 label="Смотреть отзывы"
                 icon="pi pi-arrow-right"
                 icon-pos="right"
+                class="shrink-0 whitespace-nowrap"
                 @click="router.push(`/reviews/${o.id}`)"
               />
             </div>
@@ -183,6 +171,15 @@ onMounted(() => {
             </div>
           </template>
         </Card>
+
+        <Paginator
+          v-if="org.organizationsTotal > org.organizationsPerPage"
+          :first="first"
+          :rows="org.organizationsPerPage"
+          :total-records="org.organizationsTotal"
+          template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+          @page="onPage"
+        />
       </div>
     </div>
   </AppLayout>

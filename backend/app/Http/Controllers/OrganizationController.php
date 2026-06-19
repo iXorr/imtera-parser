@@ -16,7 +16,7 @@ class OrganizationController extends Controller
     {
         $organizations = Organization::query()
             ->latest()
-            ->paginate(20);
+            ->paginate(5);
 
         return OrganizationResource::collection($organizations);
     }

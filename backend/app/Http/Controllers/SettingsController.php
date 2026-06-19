@@ -23,28 +23,27 @@ class SettingsController extends Controller
     {
         $url = $request->validated('url');
 
-        // Кэш по точному совпадению ссылки — не дёргать Яндекс повторно, если
-        // уже парсили эту же ссылку меньше 6 часов назад. Не нормализуем URL,
-        // так что разные формы ссылки на одну организацию кэш не разделяют —
-        // осознанный компромис ради того, чтобы не дублировать в Laravel
-        // парсинг ссылки, который и так делает scraper.
-        $organization = Organization::where('url', $url)->first();
-
-        $cacheFresh = $organization?->last_parsed_at !== null
-            && $organization->last_parsed_at->gt(now()->subHours(6));
-
-        if ($cacheFresh) {
-            return (new OrganizationResource($organization))->response();
+        // /api/settings — это «подключить новую организацию», не «обновить
+        // существующую»: если ссылка уже подключена, это не повод молча
+        // вернуть закэшированные данные, а повод вернуть ошибку.
+        if (Organization::where('url', $url)->exists()) {
+            return response()->json([
+                'message' => 'Эта организация уже подключена.',
+            ], 409);
         }
 
         try {
             $result = $parser->parse($url);
         } catch (ScraperRequestException $e) {
-            if ($organization) {
-                $organization->update(['status' => 'failed']);
-            }
-
             return response()->json(['message' => $e->getMessage()], $e->getStatusCode());
+        }
+
+        // Та же организация может быть подключена под другой ссылкой —
+        // businessId узнаём только после скрейпа, проверяем дубликат и тут.
+        if (Organization::where('business_id', $result->businessId)->exists()) {
+            return response()->json([
+                'message' => 'Эта организация уже подключена.',
+            ], 409);
         }
 
         $organization = $this->persistScrapeResult($url, $result);
@@ -59,6 +58,7 @@ class SettingsController extends Controller
                 ['business_id' => $result->businessId],
                 [
                     'url' => $url,
+                    'name' => $result->name,
                     'rating' => $result->summary->rating,
                     'ratings_count' => $result->summary->ratingsCount,
                     'reviews_count' => count($result->reviews),

@@ -11,6 +11,7 @@ export interface PaginatedResponse<T> {
 export interface Organization {
   id: number;
   business_id: string;
+  name: string | null;
   url: string | null;
   rating: number | null;
   ratings_count: number | null;

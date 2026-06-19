@@ -14,9 +14,13 @@ return new class extends Migration
         Schema::create('organizations', function (Blueprint $table) {
             $table->id();
             $table->string('business_id')->unique();
+            $table->string('name')->nullable();
+            $table->string('url')->nullable();
             $table->decimal('rating', 2, 1)->nullable();
             $table->unsignedInteger('ratings_count')->default(0);
             $table->unsignedInteger('reviews_count')->default(0);
+            $table->string('status')->default('pending');
+            $table->timestamp('last_parsed_at')->nullable();
             $table->timestamps();
         });
     }

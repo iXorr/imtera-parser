@@ -12,19 +12,26 @@ export const useOrganizationStore = defineStore("organization", () => {
   const reviews = ref<Review[]>([]);
   const currentPage = ref(1);
   const totalReviews = ref(0);
+  const organizationsPage = ref(1);
+  const organizationsPerPage = ref(20);
+  const organizationsTotal = ref(0);
   const loading = ref(false);
+  const reviewsLoading = ref(false);
   const error = ref<ApiErrorBody | null>(null);
   const savedUrl = ref("");
   const connecting = ref(false);
   const elapsedSeconds = ref(0);
   let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
-  async function loadOrganizations() {
+  async function loadOrganizations(page = 1) {
     loading.value = true;
 
-    const result = await fetchOrganizations();
+    const result = await fetchOrganizations(page);
     if (result.isOk && result.data) {
       organizations.value = result.data.data;
+      organizationsPage.value = result.data.meta.current_page;
+      organizationsPerPage.value = result.data.meta.per_page;
+      organizationsTotal.value = result.data.meta.total;
     }
 
     error.value = result.error;
@@ -36,6 +43,8 @@ export const useOrganizationStore = defineStore("organization", () => {
       return;
     }
 
+    reviewsLoading.value = true;
+
     const result = await fetchReviews(organization.value.id, page);
     if (result.isOk && result.data) {
       reviews.value = result.data.data;
@@ -44,6 +53,7 @@ export const useOrganizationStore = defineStore("organization", () => {
     }
 
     error.value = result.error;
+    reviewsLoading.value = false;
   }
 
   async function selectOrganization(id: number) {
@@ -101,7 +111,11 @@ export const useOrganizationStore = defineStore("organization", () => {
     reviews,
     totalReviews,
     currentPage,
+    organizationsPage,
+    organizationsPerPage,
+    organizationsTotal,
     loading,
+    reviewsLoading,
     error,
     savedUrl,
     connecting,

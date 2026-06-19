@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Organization extends Model
 {
@@ -18,6 +19,7 @@ class Organization extends Model
      */
     protected $fillable = [
         'business_id',
+        'name',
         'url',
         'rating',
         'ratings_count',
@@ -39,5 +41,11 @@ class Organization extends Model
             'reviews_count' => 'integer',
             'last_parsed_at' => 'datetime',
         ];
+    }
+
+    /** @return HasMany<Review, $this> */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class, 'business_id', 'business_id');
     }
 }
