@@ -45,4 +45,19 @@ export const fixtures: Fixture[] = [
     url: "https://yandex.com/maps/org/-/155902380365/reviews/",
     note: "yandex.ru/maps/2/saint-petersburg, oid=155902380365",
   },
+  {
+    id: "no-aggregate-rating-1",
+    url: "https://yandex.ru/maps/org/-/116931511666/reviews/",
+    note: "Организация без блока aggregateRating (есть отзывы, нет общего рейтинга) — раньше ложно считалась несуществующей",
+  },
+  {
+    id: "no-aggregate-rating-2",
+    url: "https://yandex.ru/maps/org/-/89990335980/reviews/",
+    note: "То же самое: «Ржевский лесопарк», нет aggregateRating",
+  },
+  {
+    id: "no-aggregate-rating-3",
+    url: "https://yandex.ru/maps/org/-/1759473096/reviews/",
+    note: "То же самое: «Финляндский вокзал», нет aggregateRating",
+  },
 ];
